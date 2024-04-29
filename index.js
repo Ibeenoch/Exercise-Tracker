@@ -44,8 +44,12 @@ app.post('/api/users', async(req, res) => {
 
 app.get('/api/users', async(req, res) => {
     try {
+        if(!user){
+            res.status(404).send('user not found');
+            return;
+        }
 
-        const user = await Owner.findAll()
+        const user = await Owner.findAll({}).select("_id username")
 
         res.status(201).json(user);
         
@@ -56,34 +60,33 @@ app.get('/api/users', async(req, res) => {
 
 app.post('/api/users/:_id/exercises', async(req, res) => {
     try {
-        const { description, duration } = req.body;
-        const user = await Owner.findById({_id: req.params._id});
+        const { description, duration, date } = req.body;
+        const user = await Owner.findById(req.params._id);
         // convert date 
-        const date = req.body.date || Date.now();
-        const inputDate = new Date(date);
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const daysofWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        // const inputDate = new Date(date);
+        // const months = [Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec];
+        // const daysofWeek = [Mon, Tue, Wed, Thu, Fri, Sat, Sun];
 
-        const day = inputDate.getDay();
-        const month = inputDate.getMonth();
-        const year = inputDate.getFullYear();
-        const dayOfMonth = inputDate.getDate();
+        // const day = inputDate.getDay();
+        // const month = inputDate.getMonth();
+        // const year = inputDate.getFullYear();
+        // const dayOfMonth = inputDate.getDate();
 
-        const formattedDate = `${daysofWeek[day]} ${months[month]} ${dayOfMonth.toString().padStart(2, "0")} ${year}`
+        // const formattedDate = `${daysofWeek[day]} ${months[month]} ${dayOfMonth.toString().padStart(2, "0")} ${year}`
 
         const exercises = await ExerciseTrack.create({
-            description, 
+            userId: Owner._id,
+            description,
             duration: parseInt(duration),
-            date: formattedDate,
-            userId: user._id,
+            date: date ? new Date(date)  : new Date(),
         })
-console.log('execise', exercises)
+
         res.status(200).json({
-            username: user.username,
+            _id: Owner._id,
+            username: Owner.username,
             description: exercises.description,
             duration: exercises.duration,
-            date: exercises.date,
-            _id: user._id,
+            date: new Date(exercises.date).toDateString(),
         })
         
     } catch (error) {
@@ -94,35 +97,41 @@ console.log('execise', exercises)
 app.get('/api/users/:_id/logs', async(req, res) => {
     try {
         const { from, to, limit } = req.query;
-        
-        const user = await Owner.findById(req.params._id)
-        console.log( req.params)
-        const exercises = await ExerciseTrack.find({
-            userId: req.params._id,
-            // date: { $gte: from, $lte: to }
-        })
-        .select('description duration date')
-        .limit(parseInt(limit))
-        .exec();
+        const user = await Owner.findById(req.params._id);
+       if(!user){
+        res.send("could not find user");
+        return;
+       }
+       let dateObj = {};
+       if(from){
+        dateObj["$gte"] = new Date(from)
+       }
+       if(to){
+        dateObj["$lte"] = new Date(to)
+       }
 
-        console.log('exper ', exercises)
+       let filter = {
+        user_id: req.params.id
+       }
 
-        const mappedExercise = exercises.map((exercise) => {
-           return {
-            description: exercise.description,
-            duration: exercise.duration,
-            date: exercise.date,
-           }
-        })
-        console.log('mapped ', mappedExercise)
+       if(from || to){
+        filter.date = dateObj;
+       }
+
+       const exercises = await ExerciseTrack.find(filter).limit(+limit ?? 500);
+
+       const log = exercises.map( e => ({
+        description: e.description,
+        duration: e.duration,
+        date: new Date(e.date).toDateString()
+       }));
        
-        res.status(200).json({
-            username: user.username,
-            count: mappedExercise.length,
-            _id: user._id,
-            log: mappedExercise
-          })
-        
+       res.json({
+        username: user.username,
+        count: exercises.length,
+        _id: user._id,
+        log
+       })
     } catch (error) {
         console.log(error)
     }
