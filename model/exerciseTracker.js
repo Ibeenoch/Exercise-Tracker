@@ -15,8 +15,8 @@ const exerciseSchema = mongoose.Schema({
         required: true,
     },
     userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Owner" 
+        type: String,
+        required: true,
     },
 });
 

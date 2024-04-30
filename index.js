@@ -38,7 +38,8 @@ app.post('/api/users', async(req, res) => {
         });
         
     } catch (error) {
-        console.log(error)
+        console.log(error);
+        res.send('an error occured');
     }
 })
 
@@ -50,7 +51,8 @@ app.get('/api/users', async( req, res) => {
         res.status(201).json(user);
         
     } catch (error) {
-        console.log(error)
+        console.log(error);
+        res.send('an error occured');
     }
 })
 
@@ -75,53 +77,109 @@ app.post('/api/users/:_id/exercises', async(req, res) => {
         })
         
     } catch (error) {
-        console.log(error)
+        console.log(error);
+        res.send('an error occured');
     }
 })
 
 app.get('/api/users/:_id/logs', async(req, res) => {
-    try {
-        const { from, to, limit } = req.query;
-        const auser = await Owner.findById(req.params._id);
-       if(!auser){
-        res.send("could not find user");
-        return;
-       }
-       let dateObj = {};
-       if(from){
-        dateObj["$gte"] = new Date(from)
-       }
-       if(to){
-        dateObj["$lte"] = new Date(to)
-       }
+   try {
+    const _id = req.params._id;
+        const {from, to, limit} = req.query
 
-       let filter = {
-        userId: req.params._id
-       }
+        const foundUser = await Owner.findOne({
+            "_id": _id
+        })
 
-       if(from || to){
-        filter.date = dateObj;
-       }
+        if (!foundUser) return res.status(404).json({ "message": `User with id ${_id} not found` })
+        const { username } = foundUser;
+        let exercises = await ExerciseTrack.find({
+            "userId": _id,
+        });
 
-       const exercises = await ExerciseTrack.find(filter).limit(+limit ?? 500);
+        if (from) {
+            const fromDate = new Date(from);
+            exercises = exercises.filter(exercise => new Date(exercise.date) >= fromDate);
+        }
+        if (to) {
+            const toDate = new Date(to);
+            exercises = exercises.filter(exercise => new Date(exercise.date) <= toDate);
+        }
+        if (limit) {
+            exercises = exercises.splice(0, Number(limit));
+        }
+        let count = exercises.length;
 
-       const log = exercises.map( e => ({
-        description: e.description,
-        duration: e.duration,
-        date: new Date(e.date).toDateString()
-       }));
+        const exercisesList = exercises.map(exercise => {
+            return {
+                "description": exercise.description,
+                "duration": exercise.duration,
+                "date": exercise.date instanceof Date ? exercise.date.toDateString(): (new Date(exercise.date)).toDateString()
+            }
+        });
 
-       const user = {
-        username: auser.username,
-        count: exercises.length,
-        _id: auser._id,
-        log
-       };
+        return res.json({
+            "username": username,
+            "count": count,
+            "_id": _id,
+            "log": exercisesList
+        })
+
+   } catch (error) {
+    console.log(error);
+    res.status(500).json({
+        "nessage" : "server error"
+    })
+   }
+
+    // try {
+    //     const { from, to, limit } = req.query;
+    //     console.log(from, to, limit);
+
+    //     const auser = await Owner.findById(req.params._id);
        
-       res.status(200).json(user)
-    } catch (error) {
-        console.log(error)
-    }
+    //     if(!auser){
+    //     res.send("could not find user");
+    //     return;
+    //    }
+
+    //    let dateObj = {};
+    //    if(from){
+    //     dateObj["$gte"] = new Date(from)
+    //    }
+    //    if(to){
+    //      dateObj["$lte"] = new Date(to)
+    //    }
+
+    //    let filter = {
+    //     userId: req.params._id
+    //    }
+
+    //    if(from && to){
+    //     filter.date = dateObj;
+    //    }
+
+       
+    //    const exercises = await ExerciseTrack.find(filter).limit(+limit ?? 500);
+
+    //    const log = exercises.map( e => ({
+    //     description: e.description,
+    //     duration: e.duration,
+    //     date: e.date instanceof Date ? e.date.toDateString() : (new Date(e.date)).toDateString()
+    //    }));
+
+    //    const user = {
+    //     username: auser.username,
+    //     count: exercises.length,
+    //     _id: auser._id,
+    //     log
+    //    };
+       
+    //    res.status(200).json(user)
+    // } catch (error) {
+    //     console.log(error);
+    //     res.send('an error occured')
+    // }
 })
 
 
